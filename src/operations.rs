@@ -1,8 +1,7 @@
 // Description: This file contains the operations for the wallet system, including creating wallets, adding transactions, and getting wallet balances
-use crate::models::{WSystem, Wallet, Transaction};
+use crate::models::{WalletSystem, Wallet, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
-
 
 // Error handling for the wallet system
 #[derive(Error, Debug)]
@@ -26,7 +25,7 @@ pub enum WError {
 }
 
 // This will the main structure of the wallet system
-impl WalletSys {
+impl WalletSystem {
     // Create a new wallet with a unique ID and initial balance
     pub fn add_wallet(&mut self, wallet: Wallet) {
         self.wallets.insert(wallet.id, wallet);
@@ -51,7 +50,7 @@ impl WalletSys {
         &mut self,
         from_wallet_id: &Uuid,
         to_wallet_id: &Uuid,
-        name: &str,
+        token: &str,
         amount: f64,
     ) -> Result< Transaction, WError> {
 
@@ -68,12 +67,12 @@ impl WalletSys {
 
         // Next one to validate if sender's wallet exist
         // contains_key is a method on HashMap to check if a specific key exists in a map
-        if !self.wallet.contains_key(from_wallet_id) {
+        if !self.wallets.contains_key(from_wallet_id) {
             return Err(WError::WalletNotFound(*from_wallet_id))
         }
 
         // Next to validate if reciever's wallet exist
-        if !self.wallet.contains_key(to_wallet_id) {
+        if !self.wallets.contains_key(to_wallet_id) {
             return Err(WError::WalletNotFound(*to_wallet_id))
         } 
 
@@ -84,7 +83,7 @@ impl WalletSys {
         // Unwrap(0.0) handles the case where token doesn't exists
 
         if *current_bal < amount {
-            return Err(WalletError::InsufficientBalance {
+            return Err(WError::InsufficientBalance {
                 wallet_id: *from_wallet_id,
                 token: token.to_string(),
                 balance: *current_bal,
@@ -92,6 +91,47 @@ impl WalletSys {
             });
         }
 
+        //Create a new transaction record
+        let transaction = Transaction::new(
+            *from_wallet_id,
+            *to_wallet_id,
+            amount,
+            token.to_string(),
+        );
+
+        // Update sender's balance (subtract tokens)
+        // Note: We use a separate block with { } to limit the scope of the mutable borrow
+        // This is necessary because Rust's borrow checker won't allow multiple mutable 
+        // borrows of the same collection (self.wallets) at the same time
+        {
+            let from_wallet = self.wallets.get_mut(from_wallet_id).unwrap();
+            let balance = from_wallet.balances.get_mut(token).unwrap();
+            *balance -= amount;
+        }
         
+        // Update receiver's balance (add tokens)
+        // Again in a separate block to avoid multiple mutable borrows
+        {
+            let to_wallet = self.wallets.get_mut(to_wallet_id).unwrap();
+            // entry() and or_insert() handle the case where the token doesn't exist yet
+            let balance = to_wallet.balances.entry(token.to_string()).or_insert(0.0);
+            *balance += amount;
+        }
+        
+        // Record the transaction in the system's history
+        self.transactions.push(transaction.clone());
+        
+        // Return the transaction record to the caller
+        Ok(transaction)
+    }
+    
+    // Method to get all transactions related to a specific wallet
+    // Returns a Vec containing references to matching transactions
+    pub fn get_wallet_transactions(&self, wallet_id: &Uuid) -> Vec<&Transaction> {
+        // Filter the transactions list to find ones where this wallet is either sender or receiver
+        self.transactions
+            .iter() // Create an iterator over all transactions
+            .filter(|tx| tx.from_wallet_id == *wallet_id || tx.to_wallet_id == *wallet_id)
+            .collect() // Collect the matching transactions into a Vec
     }
 }

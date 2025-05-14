@@ -45,7 +45,7 @@ pub struct Transaction {
 // Finally, we define a struct to represent the state of our application.
 // This struct will hold the wallets and transactions in memory.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct WSystem {
+pub struct WalletSystem {
     pub wallets: HashMap<Uuid, Wallet>,
     // A hash map to store wallets, using their unique IDs as keys
     pub transactions: Vec<Transaction>,
@@ -119,10 +119,10 @@ impl Transaction {
 
 
 // Now we implement methods for the WSystem struct
-impl WSystem {
+impl WalletSystem {
     // Method to create a new system state
     pub fn new() -> Self {
-        WSystem {
+        WalletSystem {
             wallets: HashMap::new(), 
             // Initialize an empty hash map for wallets
             transactions: Vec::new(), 
